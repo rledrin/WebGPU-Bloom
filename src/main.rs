@@ -3,7 +3,7 @@ mod context;
 mod renderer;
 
 use winit::{
-	event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+	event::VirtualKeyCode,
 	event_loop::{ControlFlow, EventLoop},
 	window::WindowBuilder,
 };
@@ -14,13 +14,15 @@ use renderer::Renderer;
 fn main() {
 	let event_loop = EventLoop::new();
 	let window = WindowBuilder::new()
-		.with_title("window title")
+		.with_title("wgpu bloom")
 		.with_inner_size(winit::dpi::LogicalSize::new(
 			f64::from(1080),
 			f64::from(720),
 		))
 		.build(&event_loop)
 		.unwrap();
+	let mut input = winit_input_helper::WinitInputHelper::new();
+
 	let context = pollster::block_on(Context::new(
 		&window,
 		Some(
@@ -35,53 +37,32 @@ fn main() {
 	let mut renderer = Renderer::new(context);
 
 	event_loop.run(move |event, _, control_flow| {
-		match event {
-			Event::WindowEvent {
-				ref event,
-				window_id,
-			} if window_id == window.id() => {
-				if !renderer.input(event) {
-					match event {
-						WindowEvent::CloseRequested
-						| WindowEvent::KeyboardInput {
-							input:
-								KeyboardInput {
-									state: ElementState::Pressed,
-									virtual_keycode: Some(VirtualKeyCode::Escape),
-									..
-								},
-							..
-						} => *control_flow = ControlFlow::Exit,
-						WindowEvent::Resized(physical_size) => {
-							renderer.resize(*physical_size);
-						}
-						WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-							// new_inner_size is &mut so w have to dereference it twice
-							renderer.resize(**new_inner_size);
-						}
-						_ => {}
-					}
-				}
+		if input.update(&event) {
+			if input.key_released(VirtualKeyCode::Escape) || input.quit() {
+				*control_flow = ControlFlow::Exit;
+				return;
 			}
-			Event::RedrawRequested(window_id) if window_id == window.id() => {
-				// renderer.update();
-				match renderer.render() {
-					Ok(_) => {}
-					// Reconfigure the surface if lost
-					Err(wgpu::SurfaceError::Lost) => renderer.resize(renderer.context.size),
-					// The system is out of memory, we should probably quit
-					Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-					// All other errors (Outdated, Timeout) should be resolved by the next frame
-					Err(e) => eprintln!("{:?}", e),
-				}
-				renderer.resized = false;
+			if let Some(physical_size) = input.window_resized() {
+				renderer.resize(physical_size);
 			}
-			Event::MainEventsCleared => {
-				// RedrawRequested will only trigger once, unless we manually
-				// request it.
-				window.request_redraw();
+
+			match renderer.render() {
+				Ok(_) => {}
+				// Reconfigure the surface if lost
+				Err(wgpu::SurfaceError::Lost) => renderer.resize(renderer.context.size),
+				// The system is out of memory, we should probably quit
+				Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+				// All other errors (Outdated, Timeout) should be resolved by the next frame
+				Err(e) => eprintln!("{:?}", e),
 			}
-			_ => {}
+			renderer.resized = false;
+
+			// // query the change in mouse this update
+			// let mouse_diff = input.mouse_diff();
+			// if mouse_diff != (0.0, 0.0) {
+			// 	println!("The mouse diff is: {:?}", mouse_diff);
+			// 	println!("The mouse position is: {:?}", input.mouse());
+			// }
 		}
 	});
 }
