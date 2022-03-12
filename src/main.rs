@@ -2,6 +2,7 @@ mod bloom;
 mod context;
 mod renderer;
 
+use epi::App;
 use winit::{
 	event::VirtualKeyCode,
 	event_loop::{ControlFlow, EventLoop},
@@ -12,7 +13,8 @@ use context::Context;
 use renderer::Renderer;
 
 fn main() {
-	let event_loop = EventLoop::new();
+	let event_loop = EventLoop::with_user_event();
+	// let event_loop = EventLoop::new();
 	let window = WindowBuilder::new()
 		.with_title("wgpu bloom")
 		.with_inner_size(winit::dpi::LogicalSize::new(
@@ -24,7 +26,7 @@ fn main() {
 	let mut input = winit_input_helper::WinitInputHelper::new();
 
 	let context = pollster::block_on(Context::new(
-		&window,
+		window,
 		Some(
 			wgpu::Features::PUSH_CONSTANTS
 				| wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
@@ -36,7 +38,22 @@ fn main() {
 	));
 	let mut renderer = Renderer::new(context);
 
+	// Display the demo application that ships with egui.
+	let mut demo_app = egui_demo_lib::WrapApp::default();
+
+	let start_time = std::time::Instant::now();
+	let mut previous_frame_time = None;
+	let repaint_signal = std::sync::Arc::new(renderer::gui::ExampleRepaintSignal(
+		std::sync::Mutex::new(event_loop.create_proxy()),
+	));
+
 	event_loop.run(move |event, _, control_flow| {
+		renderer
+			.gui
+			.platform
+			.update_time(start_time.elapsed().as_secs_f64());
+		renderer.gui.platform.handle_event(&event);
+
 		if input.update(&event) {
 			if input.key_released(VirtualKeyCode::Escape) || input.quit() {
 				*control_flow = ControlFlow::Exit;
@@ -46,7 +63,26 @@ fn main() {
 				renderer.resize(physical_size);
 			}
 
-			match renderer.render() {
+			let egui_start = std::time::Instant::now();
+			renderer.gui.platform.begin_frame();
+			let app_output = epi::backend::AppOutput::default();
+
+			let mut frame = epi::Frame::new(epi::backend::FrameData {
+				info: epi::IntegrationInfo {
+					name: "egui_example",
+					web_info: None,
+					cpu_usage: previous_frame_time,
+					native_pixels_per_point: Some(renderer.context.window.scale_factor() as _),
+					prefer_dark_mode: None,
+				},
+				output: app_output,
+				repaint_signal: repaint_signal.clone(),
+			});
+
+			// Draw the demo application.
+			demo_app.update(&renderer.gui.platform.context(), &mut frame);
+
+			match renderer.render(true) {
 				Ok(_) => {}
 				// Reconfigure the surface if lost
 				Err(wgpu::SurfaceError::Lost) => renderer.resize(renderer.context.size),
@@ -56,6 +92,9 @@ fn main() {
 				Err(e) => eprintln!("{:?}", e),
 			}
 			renderer.resized = false;
+
+			let frame_time = (std::time::Instant::now() - egui_start).as_secs_f64() as f32;
+			previous_frame_time = Some(frame_time);
 
 			// // query the change in mouse this update
 			// let mouse_diff = input.mouse_diff();

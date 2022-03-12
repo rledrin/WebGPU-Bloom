@@ -1,6 +1,7 @@
 extern crate ultraviolet as uv;
 
 pub mod camera;
+pub mod gui;
 pub mod mesh;
 pub mod texture;
 
@@ -29,6 +30,7 @@ pub struct Renderer {
 	final_bind_group_layout: wgpu::BindGroupLayout,
 	pub camera: camera::PerspectiveCamera,
 	pub meshes: HashMap<String, mesh::Mesh>,
+	pub gui: gui::Gui,
 	pub resized: bool,
 }
 
@@ -66,6 +68,7 @@ impl Renderer {
 			context.size.width,
 			context.size.height,
 			1,
+			1,
 			wgpu::TextureDimension::D2,
 			wgpu::TextureFormat::Rgba16Float,
 			wgpu::TextureUsages::RENDER_ATTACHMENT
@@ -92,6 +95,7 @@ impl Renderer {
 			Some("depth texture"),
 			context.size.width,
 			context.size.height,
+			1,
 			1,
 			wgpu::TextureDimension::D2,
 			wgpu::TextureFormat::Depth32Float,
@@ -225,6 +229,16 @@ impl Renderer {
 			1000.0,
 		);
 
+		let gui = gui::Gui::new(
+			&context.window,
+			&context.device,
+			context
+				.surface
+				.get_preferred_format(&context.adapter)
+				.unwrap(),
+			1,
+		);
+
 		let mut renderer = Renderer {
 			context,
 			hdr_texture,
@@ -235,6 +249,7 @@ impl Renderer {
 			final_bind_group_layout,
 			camera,
 			meshes: HashMap::with_capacity(2),
+			gui,
 			resized: false,
 		};
 		let pbr_sphere = super::bloom::init_pbr(&renderer);
@@ -369,7 +384,7 @@ impl Renderer {
 		false
 	}
 
-	pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+	pub fn render(&mut self, draw_gui: bool) -> Result<(), wgpu::SurfaceError> {
 		let output = self.context.surface.get_current_texture()?;
 		let view = output
 			.texture
@@ -406,6 +421,55 @@ impl Renderer {
 			render_pass.set_vertex_buffer(0, self.fullscreen_vertex_buffer.slice(..));
 			render_pass.set_bind_group(0, &self.final_bind_group, &[]);
 			render_pass.draw(0..6, 0..1);
+		}
+
+		if draw_gui {
+			let full_gui_output = self.gui.platform.end_frame(Some(&self.context.window));
+			let paint_jobs = self
+				.gui
+				.platform
+				.context()
+				.tessellate(full_gui_output.shapes);
+
+			// Upload all resources for the GPU.
+			let screen_descriptor = egui_wgpu_backend::ScreenDescriptor {
+				physical_width: self.context.size.width,
+				physical_height: self.context.size.height,
+				scale_factor: self.context.window.scale_factor() as f32,
+			};
+			// self.gui.render_pass.add_textures(
+			// 	&self.context.device,
+			// 	&self.context.queue,
+			// 	self.gui.platform.context().fonts(),
+			// );
+			// .update_texture(&device, &queue, &platform.context().font_image());
+			self.gui
+				.render_pass
+				.add_textures(
+					&self.context.device,
+					&self.context.queue,
+					&full_gui_output.textures_delta,
+				)
+				.unwrap();
+			// self.gui.render_pass.update_user_textures(&device, &queue);
+			self.gui.render_pass.update_buffers(
+				&self.context.device,
+				&self.context.queue,
+				&paint_jobs,
+				&screen_descriptor,
+			);
+
+			// Record all render passes.
+			self.gui
+				.render_pass
+				.execute(
+					&mut encoder,
+					&view,
+					&paint_jobs,
+					&screen_descriptor,
+					Some(wgpu::Color::BLACK),
+				)
+				.unwrap();
 		}
 
 		// submit will accept anything that implements IntoIter

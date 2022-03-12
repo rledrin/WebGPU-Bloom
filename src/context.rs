@@ -5,19 +5,21 @@ pub struct Context {
 	pub device: wgpu::Device,
 	pub queue: wgpu::Queue,
 	pub config: wgpu::SurfaceConfiguration,
+	pub adapter: wgpu::Adapter,
+	pub window: Window,
 	pub size: PhysicalSize<u32>,
 }
 
 impl Context {
 	pub async fn new(
-		window: &Window,
+		window: Window,
 		features: Option<wgpu::Features>,
 		limits: Option<wgpu::Limits>,
 	) -> Self {
 		let size = window.inner_size();
 
 		let instance = wgpu::Instance::new(wgpu::Backends::all());
-		let surface = unsafe { instance.create_surface(window) };
+		let surface = unsafe { instance.create_surface(&window) };
 		let adapter = instance
 			.request_adapter(&wgpu::RequestAdapterOptions {
 				power_preference: wgpu::PowerPreference::default(),
@@ -71,6 +73,8 @@ impl Context {
 			config,
 			device,
 			queue,
+			adapter,
+			window,
 			size,
 		}
 	}
