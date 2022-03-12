@@ -437,12 +437,6 @@ impl Renderer {
 				physical_height: self.context.size.height,
 				scale_factor: self.context.window.scale_factor() as f32,
 			};
-			// self.gui.render_pass.add_textures(
-			// 	&self.context.device,
-			// 	&self.context.queue,
-			// 	self.gui.platform.context().fonts(),
-			// );
-			// .update_texture(&device, &queue, &platform.context().font_image());
 			self.gui
 				.render_pass
 				.add_textures(
@@ -451,7 +445,6 @@ impl Renderer {
 					&full_gui_output.textures_delta,
 				)
 				.unwrap();
-			// self.gui.render_pass.update_user_textures(&device, &queue);
 			self.gui.render_pass.update_buffers(
 				&self.context.device,
 				&self.context.queue,
@@ -459,16 +452,9 @@ impl Renderer {
 				&screen_descriptor,
 			);
 
-			// Record all render passes.
 			self.gui
 				.render_pass
-				.execute(
-					&mut encoder,
-					&view,
-					&paint_jobs,
-					&screen_descriptor,
-					Some(wgpu::Color::BLACK),
-				)
+				.execute(&mut encoder, &view, &paint_jobs, &screen_descriptor, None)
 				.unwrap();
 		}
 
