@@ -62,7 +62,7 @@ impl PerspectiveCamera {
 
 		self.view = view;
 		self.proj = proj;
-		self.view_proj = view * proj;
+		self.view_proj = proj * view;
 	}
 }
 
@@ -93,7 +93,7 @@ impl OrthographicCamera {
 			far,
 			view,
 			proj,
-			view_proj: view * proj,
+			view_proj: proj * view,
 		}
 	}
 
@@ -110,6 +110,6 @@ impl OrthographicCamera {
 
 		self.view = view;
 		self.proj = proj;
-		self.view_proj = view * proj;
+		self.view_proj = proj * view;
 	}
 }

@@ -118,6 +118,16 @@ impl Renderer {
 						wgpu::BindGroupLayoutEntry {
 							binding: 1,
 							visibility: wgpu::ShaderStages::FRAGMENT,
+							ty: wgpu::BindingType::Texture {
+								multisampled: false,
+								view_dimension: wgpu::TextureViewDimension::D2,
+								sample_type: wgpu::TextureSampleType::Float { filterable: true },
+							},
+							count: None,
+						},
+						wgpu::BindGroupLayoutEntry {
+							binding: 2,
+							visibility: wgpu::ShaderStages::FRAGMENT,
 							ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
 							count: None,
 						},
@@ -195,6 +205,10 @@ impl Renderer {
 					},
 					wgpu::BindGroupEntry {
 						binding: 1,
+						resource: wgpu::BindingResource::TextureView(&hdr_texture.view),
+					},
+					wgpu::BindGroupEntry {
+						binding: 2,
 						resource: wgpu::BindingResource::Sampler(
 							&hdr_texture.sampler.as_ref().unwrap(),
 						),
@@ -226,6 +240,12 @@ impl Renderer {
 		let pbr_sphere = super::bloom::init_pbr(&renderer);
 		let bloom_mesh = super::bloom::init_bloom(&mut renderer);
 
+		let bloom_view = if (0..=bloom::BLOOM_MIP_COUNT - 2).count() % 2 == 1 {
+			&bloom_mesh.material.as_ref().unwrap().bind_groups_textures[1].view
+		} else {
+			&bloom_mesh.material.as_ref().unwrap().bind_groups_textures[2].view
+		};
+
 		renderer.final_bind_group =
 			renderer
 				.context
@@ -236,12 +256,16 @@ impl Renderer {
 					entries: &[
 						wgpu::BindGroupEntry {
 							binding: 0,
-							resource: wgpu::BindingResource::TextureView(
-								&bloom_mesh.material.as_ref().unwrap().bind_groups_textures[3].view,
-							),
+							resource: wgpu::BindingResource::TextureView(bloom_view),
 						},
 						wgpu::BindGroupEntry {
 							binding: 1,
+							resource: wgpu::BindingResource::TextureView(
+								&renderer.hdr_texture.view,
+							),
+						},
+						wgpu::BindGroupEntry {
+							binding: 2,
 							resource: wgpu::BindingResource::Sampler(
 								&renderer.hdr_texture.sampler.as_ref().unwrap(),
 							),
@@ -255,67 +279,92 @@ impl Renderer {
 	}
 
 	pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-		static mut OK: bool = false;
-		if unsafe { OK } {
-			self.resized = true;
-			let size = wgpu::Extent3d {
-				width: new_size.width,
-				height: new_size.height,
-				depth_or_array_layers: 1,
-			};
-			self.context.resize(new_size);
-			self.depth_texture.recreate(&self.context.device, size);
-			self.hdr_texture.recreate(&self.context.device, size);
+		self.resized = true;
+		let size = wgpu::Extent3d {
+			width: new_size.width,
+			height: new_size.height,
+			depth_or_array_layers: 1,
+		};
+		self.context.resize(new_size);
+		self.depth_texture.recreate(&self.context.device, size);
+		self.hdr_texture.recreate(&self.context.device, size);
 
-			let size = wgpu::Extent3d {
-				width: new_size.width / 2,
-				height: new_size.height / 2,
-				depth_or_array_layers: 1,
-			};
-			for (_, mesh) in self.meshes.iter_mut() {
-				if mesh.material.is_some() {
-					let material = mesh.material.as_mut().unwrap();
-					for text in material.bind_groups_textures.iter_mut() {
-						text.recreate(&self.context.device, size)
-					}
+		let size = wgpu::Extent3d {
+			width: new_size.width / 2,
+			height: new_size.height / 2,
+			depth_or_array_layers: 1,
+		};
+		for (_, mesh) in self.meshes.iter_mut() {
+			if mesh.material.is_some() {
+				let material = mesh.material.as_mut().unwrap();
+				for text in material.bind_groups_textures.iter_mut() {
+					text.recreate(&self.context.device, size)
 				}
 			}
-
-			self.final_bind_group =
-				self.context
-					.device
-					.create_bind_group(&wgpu::BindGroupDescriptor {
-						label: Some("final bind group"),
-						layout: &self.final_bind_group_layout,
-						entries: &[
-							wgpu::BindGroupEntry {
-								binding: 0,
-								resource: wgpu::BindingResource::TextureView(
-									&self
-										.meshes
-										.get("bloom")
-										.as_ref()
-										.unwrap()
-										.material
-										.as_ref()
-										.unwrap()
-										.bind_groups_textures[3]
-										.view,
-								),
-							},
-							wgpu::BindGroupEntry {
-								binding: 1,
-								resource: wgpu::BindingResource::Sampler(
-									&self.hdr_texture.sampler.as_ref().unwrap(),
-								),
-							},
-						],
-					});
-		} else {
-			unsafe { OK = true };
 		}
+
+		let bloom_view = if (0..=bloom::BLOOM_MIP_COUNT - 2).count() % 2 == 1 {
+			&self
+				.meshes
+				.get("bloom")
+				.as_ref()
+				.unwrap()
+				.material
+				.as_ref()
+				.unwrap()
+				.bind_groups_textures[1]
+				.view
+		} else {
+			&self
+				.meshes
+				.get("bloom")
+				.as_ref()
+				.unwrap()
+				.material
+				.as_ref()
+				.unwrap()
+				.bind_groups_textures[2]
+				.view
+		};
+
+		self.final_bind_group = self
+			.context
+			.device
+			.create_bind_group(&wgpu::BindGroupDescriptor {
+				label: Some("final bind group"),
+				layout: &self.final_bind_group_layout,
+				entries: &[
+					wgpu::BindGroupEntry {
+						binding: 0,
+						resource: wgpu::BindingResource::TextureView(bloom_view),
+					},
+					wgpu::BindGroupEntry {
+						binding: 1,
+						resource: wgpu::BindingResource::TextureView(&self.hdr_texture.view),
+					},
+					wgpu::BindGroupEntry {
+						binding: 2,
+						resource: wgpu::BindingResource::Sampler(
+							&self.hdr_texture.sampler.as_ref().unwrap(),
+						),
+					},
+				],
+			});
+		self.camera.aspect_ratio = new_size.width as f32 / new_size.height as f32;
+		self.camera.recreate_matrices();
+		let mut pbr_mesh = self.meshes.get_mut("pbr");
+		let pbr_mat = pbr_mesh.as_mut().unwrap().material.as_mut().unwrap();
+
+		pbr_mat.copy_to_buffer(
+			&self.context.device,
+			&self.context.queue,
+			0,
+			0,
+			vec![self.camera.view_proj],
+		);
 	}
 
+	#[allow(unused)]
 	pub fn input(&mut self, _event: &WindowEvent) -> bool {
 		false
 	}

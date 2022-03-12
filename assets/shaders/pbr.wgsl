@@ -37,9 +37,9 @@ fn vs_main(in: Vertexinput) -> VertexOutput {
 // Fragment Shader
 
 struct PbrParam {
-	albedo: vec3<f32>;
-	metallic: f32;
 	cam_pos: vec3<f32>;
+	metallic: f32;
+	albedo: vec3<f32>;
 	roughness: f32;
 	emissive_color: vec3<f32>;
 	ao: f32;
@@ -131,6 +131,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
 	// let color = vec3<f32>(1.0, 0.0, 0.0);
 
-	// return vec4<f32>((color + (param.emissive_color * param.emissive_intensity)).xyz, 1.0);
-	return vec4<f32>(10.0, 5.0, 1.0, 1.0);
+	return vec4<f32>((color + (param.emissive_color * param.emissive_intensity)).xyz, 1.0);
+	// return vec4<f32>(color, 1.0);
+	// return vec4<f32>(10.0, 5.0, 1.0, 1.0);
 }

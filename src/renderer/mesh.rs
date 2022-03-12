@@ -237,4 +237,31 @@ impl Material {
 		});
 		self.compute_pipeline = Some(compute_pipeline);
 	}
+
+	pub fn copy_to_buffer<T>(
+		&mut self,
+		device: &wgpu::Device,
+		queue: &wgpu::Queue,
+		index: usize,
+		offset: u64,
+		data_vec: Vec<T>,
+	) {
+		let data = unsafe { data_vec.align_to::<u8>().1 };
+		let copy_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+			label: Some("copy buffer"),
+			contents: data,
+			usage: wgpu::BufferUsages::COPY_SRC,
+		});
+		let mut command_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+			label: Some("copy Encoder"),
+		});
+		command_encoder.copy_buffer_to_buffer(
+			&copy_buffer,
+			0,
+			&self.bind_groups_buffers[index],
+			offset,
+			data.len() as u64,
+		);
+		queue.submit(std::iter::once(command_encoder.finish()));
+	}
 }
