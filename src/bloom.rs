@@ -9,13 +9,13 @@ use crate::renderer::{
 	Renderer, Vertex,
 };
 
-const BLOOM_MIP_COUNT: usize = 7;
+pub const BLOOM_MIP_COUNT: usize = 7;
 
 #[repr(C, align(16))]
 pub struct PbrParam {
-	pub albedo: uv::Vec3,
-	pub metallic: f32,
 	pub cam_pos: uv::Vec3,
+	pub metallic: f32,
+	pub albedo: uv::Vec3,
 	pub roughness: f32,
 	pub emissive_color: uv::Vec3,
 	pub ao: f32,
@@ -53,9 +53,9 @@ fn load_sphere() -> Vec<Vertex> {
 
 pub fn init_pbr(renderer: &Renderer) -> mesh::Mesh {
 	let param = vec![PbrParam {
-		albedo: uv::Vec3::new(1.0, 0.0, 0.0),
-		metallic: 0.0,
 		cam_pos: renderer.camera.position,
+		metallic: 0.0,
+		albedo: uv::Vec3::new(1.0, 0.0, 0.0),
 		roughness: 0.2,
 		emissive_color: uv::Vec3::zero(),
 		ao: 0.01,
@@ -86,7 +86,7 @@ pub fn init_pbr(renderer: &Renderer) -> mesh::Mesh {
 			.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 				label: Some("pbr Matix buffer"),
 				contents: content,
-				usage: wgpu::BufferUsages::UNIFORM,
+				usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			});
 
 	let content = unsafe { param.align_to::<u8>().1 };
@@ -97,7 +97,7 @@ pub fn init_pbr(renderer: &Renderer) -> mesh::Mesh {
 			.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 				label: Some("pbr param buffer"),
 				contents: content,
-				usage: wgpu::BufferUsages::UNIFORM,
+				usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			});
 
 	let mut pbr_mat = mesh::Material::new(1, 0);
@@ -345,29 +345,6 @@ fn set_all_bind_group(renderer: &Renderer, bloom_mat: &mut Material) {
 			o = true;
 		}
 	}
-
-	// Apply the bloom to the hdr texture
-	if o {
-		bloom_mat.bind_group.push(create_bloom_bind_group(
-			renderer,
-			bloom_mat,
-			&bloom_mat.bind_groups_textures[3].view,
-			&renderer.hdr_texture.view,
-			&bloom_mat.bind_groups_textures[2].view,
-			renderer.hdr_texture.sampler.as_ref().unwrap(),
-			&bloom_mat.bind_groups_buffers[0],
-		));
-	} else {
-		bloom_mat.bind_group.push(create_bloom_bind_group(
-			renderer,
-			bloom_mat,
-			&bloom_mat.bind_groups_textures[3].view,
-			&renderer.hdr_texture.view,
-			&bloom_mat.bind_groups_textures[1].view,
-			renderer.hdr_texture.sampler.as_ref().unwrap(),
-			&bloom_mat.bind_groups_buffers[0],
-		));
-	}
 }
 
 pub fn init_bloom(renderer: &mut Renderer) -> mesh::Mesh {
@@ -474,17 +451,6 @@ pub fn init_bloom(renderer: &mut Renderer) -> mesh::Mesh {
 		wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
 		wgpu::TextureAspect::All,
 	));
-	bloom_mat.bind_groups_textures.push(texture::Texture::new(
-		&renderer.context.device,
-		Some("bloom final image"),
-		renderer.context.size.width,
-		renderer.context.size.height,
-		1,
-		wgpu::TextureDimension::D2,
-		wgpu::TextureFormat::Rgba16Float,
-		wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
-		wgpu::TextureAspect::All,
-	));
 
 	let bloom_threshold = 1.0f32;
 	let bloom_knee = 0.2f32;
@@ -546,7 +512,6 @@ pub fn render_bloom(renderer: &mut Renderer, encoder: &mut wgpu::CommandEncoder)
 	const MODE_DOWNSAMPLE: u32 = 1;
 	const MODE_UPSAMPLE_FIRST: u32 = 2;
 	const MODE_UPSAMPLE: u32 = 3;
-	const MODE_APPLY: u32 = 4;
 
 	struct PushConstant {
 		mode_lod: u32,
@@ -618,14 +583,6 @@ pub fn render_bloom(renderer: &mut Renderer, encoder: &mut wgpu::CommandEncoder)
 		bind_group_index += 1;
 		compute_pass.dispatch(mip_size.width / 8 + 1, mip_size.height / 4 + 1, 1);
 	}
-
-	// * Apply the bloom to the hdr texture
-	let mip_size = renderer.hdr_texture.size;
-	pc[0].mode_lod = MODE_APPLY << 16 | 0u32;
-	let pc_data = unsafe { pc.align_to::<u8>().1 };
-	compute_pass.set_push_constants(0, pc_data);
-	compute_pass.set_bind_group(0, &bloom_mat.bind_group[bind_group_index], &[]);
-	compute_pass.dispatch(mip_size.width / 8 + 1, mip_size.height / 4 + 1, 1);
 
 	drop(compute_pass);
 	renderer.meshes.get_mut("bloom").unwrap().material = Some(bloom_mat);

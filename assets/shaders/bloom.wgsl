@@ -6,7 +6,6 @@ let MODE_PREFILTER: u32 = 0u;
 let MODE_DOWNSAMPLE: u32 = 1u;
 let MODE_UPSAMPLE_FIRST: u32 = 2u;
 let MODE_UPSAMPLE: u32 = 3u;
-let MODE_APPLY: u32 = 4u;
 
 let EPSILON: f32 = 1.0e-4;
 
@@ -171,17 +170,6 @@ fn cs_main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>)
 
 			let existing = textureSampleLevel(in_text, samp, texCoords, f32(lod)).rgb;
 			color = vec4<f32>(combine(existing, upsampledTexture, param.combine_constant), 1.0);
-		}
-		else if (mode == MODE_APPLY)
-		{
-			let bloomTexSize = textureDimensions(bl_text, i32(lod));
-			let sampleScale = 1.0;
-			let upsampledTexture = UpsampleTent9(bl_text, f32(lod), texCoords, 1.0 / vec2<f32>(bloomTexSize), sampleScale);
-
-			let existing = textureSampleLevel(in_text, samp, texCoords, f32(lod)).rbg;
-
-			color = vec4<f32>(combine(existing, upsampledTexture * param.intensity, param.combine_constant), 1.0);
-
 		}
 		textureStore(out_text, vec2<i32>(global_invocation_id.xy), color);
 	}
