@@ -23,10 +23,9 @@ fn vs_main(in: Vertexinput) -> VertexOutput {
 
 // Fragment Shader
 
-[[group(0), binding(0)]]
-var hdr_texture: texture_2d<f32>;
-[[group(0), binding(1)]]
-var hdr_sampler: sampler;
+[[group(0), binding(0)]] var hdr_texture: texture_2d<f32>;
+[[group(0), binding(1)]] var bloom_texture: texture_2d<f32>;
+[[group(0), binding(2)]] var hdr_sampler: sampler;
 
 
 // can be optimized into lut (compute can gen it)
@@ -69,8 +68,14 @@ fn aces(x: vec3<f32>) -> vec3<f32> {
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+	let bloom_intensity = 1.0;
+	let combine_constant = 0.68;
+	let bloom_color = textureSample(bloom_texture, hdr_sampler, in.uv);
 	let hdr_color = textureSample(hdr_texture, hdr_sampler, in.uv);
-	let mapped_color = GTTonemap(hdr_color.rgb);
+	let combined_color = ((bloom_color * bloom_intensity) * combine_constant) + hdr_color;
+
+	let mapped_color = GTTonemap(combined_color.rgb);
+	// let mapped_color = aces(hdr_color.rgb);
 	let gamma_corrected_color = pow(mapped_color, vec3<f32>(1.0 / 2.2));
 
 	return vec4<f32>(gamma_corrected_color, 1.0);
