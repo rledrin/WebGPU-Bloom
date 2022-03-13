@@ -124,7 +124,7 @@ fn main() {
 					&renderer.context.device,
 					&renderer.context.queue,
 					0,
-					vec![bloom_intensity * 2.0],
+					vec![bloom_intensity * 4.0],
 				)
 			}
 
@@ -138,13 +138,6 @@ fn main() {
 				Err(e) => eprintln!("{:?}", e),
 			}
 			renderer.resized = false;
-
-			// // query the change in mouse this update
-			// let mouse_diff = input.mouse_diff();
-			// if mouse_diff != (0.0, 0.0) {
-			// 	println!("The mouse diff is: {:?}", mouse_diff);
-			// 	println!("The mouse position is: {:?}", input.mouse());
-			// }
 		}
 	});
 }
