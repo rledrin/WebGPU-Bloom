@@ -96,7 +96,7 @@ impl Renderer {
 			context.size.width,
 			context.size.height,
 			1,
-			1,
+			4,
 			wgpu::TextureDimension::D2,
 			wgpu::TextureFormat::Depth32Float,
 			wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -246,7 +246,7 @@ impl Renderer {
 			});
 
 		let camera = camera::PerspectiveCamera::new(
-			uv::Vec3::new(0.0, 0.0, -4.0),
+			uv::Vec3::new(0.0, 0.0, -5.0),
 			uv::Vec3::zero(),
 			std::f32::consts::FRAC_PI_3,
 			context.size.width as f32 / context.size.height as f32,
@@ -338,16 +338,26 @@ impl Renderer {
 		self.depth_texture.recreate(&self.context.device, size);
 		self.hdr_texture.recreate(&self.context.device, size);
 
-		let size = wgpu::Extent3d {
+		let divided_size = wgpu::Extent3d {
 			width: new_size.width / 2,
 			height: new_size.height / 2,
 			depth_or_array_layers: 1,
 		};
-		for (_, mesh) in self.meshes.iter_mut() {
+		let size = wgpu::Extent3d {
+			width: new_size.width,
+			height: new_size.height,
+			depth_or_array_layers: 1,
+		};
+
+		for (k, mesh) in self.meshes.iter_mut() {
 			if mesh.material.is_some() {
 				let material = mesh.material.as_mut().unwrap();
 				for text in material.bind_groups_textures.iter_mut() {
-					text.recreate(&self.context.device, size)
+					if k == "bloom" {
+						text.recreate(&self.context.device, divided_size);
+					} else {
+						text.recreate(&self.context.device, size);
+					}
 				}
 			}
 		}
@@ -447,12 +457,14 @@ impl Renderer {
 				color_attachments: &[wgpu::RenderPassColorAttachment {
 					view: &view,
 					resolve_target: None,
+					// view: &view,
+					// resolve_target: None,
 					ops: wgpu::Operations {
 						load: wgpu::LoadOp::Clear(wgpu::Color {
-							r: 0.1,
-							g: 0.5,
-							b: 0.7,
-							a: 1.0,
+							r: 0.0,
+							g: 0.0,
+							b: 0.0,
+							a: 0.0,
 						}),
 						store: true,
 					},

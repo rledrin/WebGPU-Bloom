@@ -53,6 +53,7 @@ fn load_sphere() -> Vec<Vertex> {
 }
 
 pub fn init_pbr(renderer: &Renderer) -> mesh::Mesh {
+	let sample = 4u32;
 	let param = vec![PbrParam {
 		cam_pos: renderer.camera.position,
 		metallic: 0.0,
@@ -147,15 +148,32 @@ pub fn init_pbr(renderer: &Renderer) -> mesh::Mesh {
 	pbr_mat.bind_groups_buffers.push(matrix_buffer);
 	pbr_mat.bind_groups_buffers.push(param_buffer);
 
+	let multisampled_texture = texture::Texture::new(
+		&renderer.context.device,
+		Some("pbr multisampled texture"),
+		renderer.hdr_texture.size.width,
+		renderer.hdr_texture.size.height,
+		1,
+		sample,
+		wgpu::TextureDimension::D2,
+		wgpu::TextureFormat::Rgba16Float,
+		wgpu::TextureUsages::RENDER_ATTACHMENT,
+		wgpu::TextureAspect::All,
+	);
+
+	pbr_mat.bind_groups_textures.push(multisampled_texture);
+
 	pbr_mat.set_render_pipeline(
 		&renderer.context.device,
 		Some("pbr pipeline"),
 		wgpu::include_wgsl!("../assets/shaders/pbr.wgsl"),
 		renderer.hdr_texture.format,
+		sample,
 		Some(renderer.depth_texture.format),
 	);
 
 	pbr_mesh.material = Some(pbr_mat);
+
 	pbr_mesh
 }
 
@@ -163,16 +181,24 @@ pub fn render_pbr(renderer: &Renderer, encoder: &mut wgpu::CommandEncoder) {
 	let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 		label: Some("hdr Render Pass"),
 		color_attachments: &[wgpu::RenderPassColorAttachment {
-			view: &renderer.hdr_texture.view,
-			resolve_target: None,
+			view: &renderer
+				.meshes
+				.get("pbr")
+				.unwrap()
+				.material
+				.as_ref()
+				.unwrap()
+				.bind_groups_textures[0]
+				.view,
+			resolve_target: Some(&renderer.hdr_texture.view),
 			ops: wgpu::Operations {
 				load: wgpu::LoadOp::Clear(wgpu::Color {
 					r: 0.0,
 					g: 0.0,
 					b: 0.0,
-					a: 1.0,
+					a: 0.0,
 				}),
-				store: true,
+				store: false,
 			},
 		}],
 		depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {

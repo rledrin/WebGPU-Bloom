@@ -27,10 +27,7 @@ fn main() {
 
 	let context = pollster::block_on(Context::new(
 		window,
-		Some(
-			wgpu::Features::PUSH_CONSTANTS
-				| wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
-		),
+		Some(wgpu::Features::PUSH_CONSTANTS),
 		Some(wgpu::Limits {
 			max_push_constant_size: 128,
 			..Default::default()
@@ -127,13 +124,9 @@ fn main() {
 					&renderer.context.device,
 					&renderer.context.queue,
 					0,
-					vec![bloom_intensity],
+					vec![bloom_intensity * 2.0],
 				)
 			}
-			// println!(
-			// 	"(pbr_param: {}, final_composite: {}, bloom_param: {})",
-			// 	pbr_param, final_composite, bloom_param
-			// );
 
 			match renderer.render(true) {
 				Ok(_) => {}

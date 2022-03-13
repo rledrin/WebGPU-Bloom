@@ -133,6 +133,7 @@ impl Material {
 		label: Option<&str>,
 		shader: wgpu::ShaderModuleDescriptor,
 		render_format: wgpu::TextureFormat,
+		sample: u32,
 		depth_format: Option<wgpu::TextureFormat>,
 	) {
 		let shader = device.create_shader_module(&shader);
@@ -162,6 +163,21 @@ impl Material {
 				entry_point: "vs_main",
 				buffers: &[Vertex::layout()],
 			},
+			primitive: wgpu::PrimitiveState {
+				topology: wgpu::PrimitiveTopology::TriangleList,
+				strip_index_format: None,
+				front_face: wgpu::FrontFace::Ccw,
+				cull_mode: Some(wgpu::Face::Back),
+				polygon_mode: wgpu::PolygonMode::Fill,
+				unclipped_depth: false,
+				conservative: false,
+			},
+			depth_stencil: depth,
+			multisample: wgpu::MultisampleState {
+				count: sample,
+				mask: !0,
+				alpha_to_coverage_enabled: false,
+			},
 			fragment: Some(wgpu::FragmentState {
 				module: &shader,
 				entry_point: "fs_main",
@@ -174,21 +190,6 @@ impl Material {
 					write_mask: wgpu::ColorWrites::ALL,
 				}],
 			}),
-			primitive: wgpu::PrimitiveState {
-				topology: wgpu::PrimitiveTopology::TriangleList,
-				strip_index_format: None,
-				front_face: wgpu::FrontFace::Ccw,
-				cull_mode: Some(wgpu::Face::Back),
-				polygon_mode: wgpu::PolygonMode::Fill,
-				unclipped_depth: false,
-				conservative: false,
-			},
-			depth_stencil: depth,
-			multisample: wgpu::MultisampleState {
-				count: 1,
-				mask: !0,
-				alpha_to_coverage_enabled: false,
-			},
 			multiview: None,
 		});
 		self.render_pipeline = Some(render_pipeline);
