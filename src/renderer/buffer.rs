@@ -7,6 +7,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
+	#![allow(unused)]
 	pub fn new<T>(
 		device: &wgpu::Device,
 		label: Option<&str>,
