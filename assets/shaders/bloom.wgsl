@@ -11,7 +11,6 @@ let EPSILON: f32 = 1.0e-4;
 
 struct bloom_param {
 	parameters: vec4<f32>; // (x) threshold, (y) threshold - knee, (z) knee * 2, (w) 0.25 / knee
-	intensity: f32;
 	combine_constant: f32;
 };
 
@@ -136,7 +135,6 @@ fn cs_main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>)
 	if (global_invocation_id.x <= u32(imgSize.x) && global_invocation_id.x <= u32(imgSize.x)) {
 
 		// float combine_constant = 0.68;
-		// float intensity = 1.0;
 
 		var texCoords: vec2<f32> = vec2<f32>(f32(global_invocation_id.x) / f32(imgSize.x), f32(global_invocation_id.y) / f32(imgSize.y));
 		texCoords = texCoords + (1.0 / vec2<f32>(imgSize)) * 0.5;

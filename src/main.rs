@@ -1,8 +1,9 @@
+extern crate ultraviolet as uv;
+
 mod bloom;
 mod context;
 mod renderer;
 
-use epi::App;
 use winit::{
 	event::VirtualKeyCode,
 	event_loop::{ControlFlow, EventLoop},
@@ -13,8 +14,7 @@ use context::Context;
 use renderer::Renderer;
 
 fn main() {
-	let event_loop = EventLoop::with_user_event();
-	// let event_loop = EventLoop::new();
+	let event_loop = EventLoop::new();
 	let window = WindowBuilder::new()
 		.with_title("wgpu bloom")
 		.with_inner_size(winit::dpi::LogicalSize::new(
@@ -38,18 +38,31 @@ fn main() {
 	));
 	let mut renderer = Renderer::new(context);
 
-	// Display the demo application that ships with egui.
-	// let mut demo_app = egui_demo_lib::WrapApp::default();
-	// let mut demo_app = egui_demo_lib::WrapApp::;
+	let mut pbr_param = bloom::PbrParam {
+		cam_pos: renderer.camera.position,
+		metallic: 0.0,
+		albedo: uv::Vec3::new(1.0, 0.0, 0.0),
+		roughness: 0.2,
+		emissive_color: uv::Vec3::new(0.0, 0.0, 0.0),
+		ao: 0.01,
+		light_position: uv::Vec3::new(-4.0, 5.0, -5.0),
+		emissive_intensity: 0.0,
+		light_color: uv::Vec3::new(25.0, 25.0, 25.0),
+	};
+	let mut bloom_threshold = 1.0f32;
+	let mut bloom_knee = 0.2f32;
+	let mut bloom_param = bloom::BloomParam {
+		parameters: uv::Vec4::new(
+			bloom_threshold,
+			bloom_threshold - bloom_knee,
+			bloom_knee * 2.0f32,
+			0.25f32 / bloom_knee,
+		), // (x) threshold, (y) threshold - knee, (z) knee * 2, (w) 0.25 / knee
+		combine_constant: 0.68,
+	};
+	let mut bloom_intensity = 1.0f32;
 
 	let start_time = std::time::Instant::now();
-	let mut previous_frame_time = None;
-	let repaint_signal = std::sync::Arc::new(renderer::gui::ExampleRepaintSignal(
-		std::sync::Mutex::new(event_loop.create_proxy()),
-	));
-
-	let mut slider_val = 0.0f32;
-	let mut color = [0.0f32; 3];
 
 	event_loop.run(move |event, _, control_flow| {
 		renderer
@@ -67,74 +80,60 @@ fn main() {
 				renderer.resize(physical_size);
 			}
 
-			let egui_start = std::time::Instant::now();
 			renderer.gui.platform.begin_frame();
 
-			// let app_output = epi::backend::AppOutput::default();
-			// let mut frame = epi::Frame::new(epi::backend::FrameData {
-			// 	info: epi::IntegrationInfo {
-			// 		name: "egui_example",
-			// 		web_info: None,
-			// 		cpu_usage: previous_frame_time,
-			// 		native_pixels_per_point: Some(renderer.context.window.scale_factor() as _),
-			// 		prefer_dark_mode: None,
-			// 	},
-			// 	output: app_output,
-			// 	repaint_signal: repaint_signal.clone(),
-			// });
-			// // Draw the demo application.
-			// demo_app.update(&renderer.gui.platform.context(), &mut frame);
-
-			egui::Window::new("Parameters")
-				.resizable(false)
-				// .auto_sized()
-				.show(&renderer.gui.platform.context(), |ui| {
-					ui.add(
-						egui::Slider::new(&mut slider_val, 0.0..=1.0)
-							.step_by(0.001)
-							.smart_aim(false)
-							.text("Roughness"),
-					);
-					ui.add(
-						egui::Slider::new(&mut slider_val, 0.0..=1.0)
-							.step_by(0.001)
-							.smart_aim(false)
-							.text("Metallic"),
-					);
-					ui.add(
-						egui::Slider::new(&mut slider_val, 0.0..=1.0)
-							.step_by(0.001)
-							.smart_aim(false)
-							.text("Ao"),
-					);
-					ui.horizontal(|ui| {
-						ui.color_edit_button_rgb(&mut color);
-						ui.label("Albedo");
-					});
-					ui.horizontal(|ui| {
-						ui.color_edit_button_rgb(&mut color);
-						ui.label("Emissive");
-					});
-					ui.add(
-						egui::Slider::new(&mut slider_val, 0.0..=1.0)
-							.step_by(0.001)
-							.smart_aim(false)
-							.text("Emissive intensity"),
-					);
-					ui.add(
-						egui::Slider::new(&mut slider_val, 0.0..=1.0)
-							.step_by(0.001)
-							.smart_aim(false)
-							.text("Bloom intensity"),
-					);
-					ui.add(
-						egui::Slider::new(&mut slider_val, 0.0..=1.0)
-							.step_by(0.001)
-							.smart_aim(false)
-							.text("Bloom threshold"),
-					);
-				})
-				.unwrap();
+			let (pbr, final_composite, bloom) = renderer::gui::create_gui(
+				&renderer.gui.platform.context(),
+				&mut pbr_param,
+				&mut bloom_threshold,
+				&mut bloom_knee,
+				&mut bloom_param,
+				&mut bloom_intensity,
+			);
+			if pbr {
+				renderer
+					.meshes
+					.get_mut("pbr")
+					.unwrap()
+					.material
+					.as_mut()
+					.unwrap()
+					.copy_to_buffer(
+						&renderer.context.device,
+						&renderer.context.queue,
+						1,
+						0,
+						vec![pbr_param.clone()],
+					)
+			}
+			if bloom {
+				renderer
+					.meshes
+					.get_mut("bloom")
+					.unwrap()
+					.material
+					.as_mut()
+					.unwrap()
+					.copy_to_buffer(
+						&renderer.context.device,
+						&renderer.context.queue,
+						0,
+						0,
+						vec![bloom_param.clone()],
+					)
+			}
+			if final_composite {
+				renderer.final_buffer.copy_to_buffer(
+					&renderer.context.device,
+					&renderer.context.queue,
+					0,
+					vec![bloom_intensity],
+				)
+			}
+			// println!(
+			// 	"(pbr_param: {}, final_composite: {}, bloom_param: {})",
+			// 	pbr_param, final_composite, bloom_param
+			// );
 
 			match renderer.render(true) {
 				Ok(_) => {}
@@ -146,9 +145,6 @@ fn main() {
 				Err(e) => eprintln!("{:?}", e),
 			}
 			renderer.resized = false;
-
-			let frame_time = (std::time::Instant::now() - egui_start).as_secs_f64() as f32;
-			previous_frame_time = Some(frame_time);
 
 			// // query the change in mouse this update
 			// let mouse_diff = input.mouse_diff();

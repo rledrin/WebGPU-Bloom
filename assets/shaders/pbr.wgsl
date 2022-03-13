@@ -129,9 +129,6 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 	let ambient = vec3<f32>(0.03) * param.albedo * param.ao;
 	let color = ambient + Lo;
 
-	// let color = vec3<f32>(1.0, 0.0, 0.0);
 
 	return vec4<f32>((color + (param.emissive_color * param.emissive_intensity)).xyz, 1.0);
-	// return vec4<f32>(color, 1.0);
-	// return vec4<f32>(10.0, 5.0, 1.0, 1.0);
 }

@@ -12,6 +12,7 @@ use crate::renderer::{
 pub const BLOOM_MIP_COUNT: usize = 7;
 
 #[repr(C, align(16))]
+#[derive(Clone, Copy)]
 pub struct PbrParam {
 	pub cam_pos: uv::Vec3,
 	pub metallic: f32,
@@ -25,10 +26,10 @@ pub struct PbrParam {
 }
 
 #[repr(C, align(16))]
-struct BloomParam {
-	parameters: uv::Vec4, // (x) threshold, (y) threshold - knee, (z) knee * 2, (w) 0.25 / knee
-	intensity: f32,
-	combine_constant: f32,
+#[derive(Clone, Copy)]
+pub struct BloomParam {
+	pub parameters: uv::Vec4, // (x) threshold, (y) threshold - knee, (z) knee * 2, (w) 0.25 / knee
+	pub combine_constant: f32,
 }
 
 fn load_sphere() -> Vec<Vertex> {
@@ -474,13 +475,12 @@ pub fn init_bloom(renderer: &mut Renderer) -> mesh::Mesh {
 								bloom_knee * 2.0f32,
 								0.25f32 / bloom_knee,
 							),
-							intensity: 1.0,
 							combine_constant: 0.68,
 						}]
 						.align_to::<u8>()
 						.1
 					},
-					usage: wgpu::BufferUsages::UNIFORM,
+					usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 				}),
 		);
 	bloom_mat.set_compute_pipeline(

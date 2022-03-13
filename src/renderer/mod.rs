@@ -1,5 +1,6 @@
 extern crate ultraviolet as uv;
 
+pub mod buffer;
 pub mod camera;
 pub mod gui;
 pub mod mesh;
@@ -9,8 +10,6 @@ use crate::{bloom, context::Context};
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, event::WindowEvent};
-
-use std::collections::HashMap;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -27,9 +26,10 @@ pub struct Renderer {
 	pub final_pipeline: wgpu::RenderPipeline,
 	fullscreen_vertex_buffer: wgpu::Buffer,
 	final_bind_group: wgpu::BindGroup,
+	pub final_buffer: buffer::Buffer,
 	final_bind_group_layout: wgpu::BindGroupLayout,
 	pub camera: camera::PerspectiveCamera,
-	pub meshes: HashMap<String, mesh::Mesh>,
+	pub meshes: hashbrown::HashMap<String, mesh::Mesh>,
 	pub gui: gui::Gui,
 	pub resized: bool,
 }
@@ -103,6 +103,13 @@ impl Renderer {
 			wgpu::TextureAspect::DepthOnly,
 		);
 
+		let final_buffer = buffer::Buffer::new(
+			&context.device,
+			Some("final Buffer"),
+			vec![1.0f32, 0.68],
+			wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+		);
+
 		let final_bind_group_layout =
 			context
 				.device
@@ -133,6 +140,16 @@ impl Renderer {
 							binding: 2,
 							visibility: wgpu::ShaderStages::FRAGMENT,
 							ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+							count: None,
+						},
+						wgpu::BindGroupLayoutEntry {
+							binding: 3,
+							visibility: wgpu::ShaderStages::FRAGMENT,
+							ty: wgpu::BindingType::Buffer {
+								ty: wgpu::BufferBindingType::Uniform,
+								has_dynamic_offset: false,
+								min_binding_size: Some(final_buffer.size),
+							},
 							count: None,
 						},
 					],
@@ -217,6 +234,14 @@ impl Renderer {
 							&hdr_texture.sampler.as_ref().unwrap(),
 						),
 					},
+					wgpu::BindGroupEntry {
+						binding: 3,
+						resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+							buffer: &final_buffer.buffer,
+							offset: 0,
+							size: Some(final_buffer.size),
+						}),
+					},
 				],
 			});
 
@@ -247,8 +272,9 @@ impl Renderer {
 			fullscreen_vertex_buffer,
 			final_bind_group,
 			final_bind_group_layout,
+			final_buffer,
 			camera,
-			meshes: HashMap::with_capacity(2),
+			meshes: hashbrown::HashMap::with_capacity(2),
 			gui,
 			resized: false,
 		};
@@ -284,6 +310,14 @@ impl Renderer {
 							resource: wgpu::BindingResource::Sampler(
 								&renderer.hdr_texture.sampler.as_ref().unwrap(),
 							),
+						},
+						wgpu::BindGroupEntry {
+							binding: 3,
+							resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+								buffer: &renderer.final_buffer.buffer,
+								offset: 0,
+								size: Some(renderer.final_buffer.size),
+							}),
 						},
 					],
 				});
@@ -362,6 +396,14 @@ impl Renderer {
 						resource: wgpu::BindingResource::Sampler(
 							&self.hdr_texture.sampler.as_ref().unwrap(),
 						),
+					},
+					wgpu::BindGroupEntry {
+						binding: 3,
+						resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+							buffer: &self.final_buffer.buffer,
+							offset: 0,
+							size: Some(self.final_buffer.size),
+						}),
 					},
 				],
 			});
