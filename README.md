@@ -3,7 +3,6 @@
 
 ## How to compile/run
  * [Install the rust compiler and cargo](https://www.rust-lang.org/learn/get-started)
- * [Download the Vulkan SDK](https://vulkan.lunarg.com/sdk/home)
  * Clone the repo
  * Execute:
  
