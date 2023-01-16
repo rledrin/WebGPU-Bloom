@@ -377,7 +377,7 @@ fn set_all_bind_group(renderer: &Renderer, bloom_mat: &mut Material) {
 pub fn init_bloom(renderer: &mut Renderer) -> mesh::Mesh {
 	let mut bloom_mesh = mesh::Mesh::new::<u32>(
 		&renderer.context.device,
-		Some("pbrMesh"),
+		Some("bloomMesh"),
 		&vec![],
 		None,
 		None,
