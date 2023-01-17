@@ -132,7 +132,7 @@ fn cs_main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>)
 
 	let imgSize = textureDimensions(out_text);
 
-	if (global_invocation_id.x <= u32(imgSize.x) && global_invocation_id.x <= u32(imgSize.x)) {
+	if (global_invocation_id.x <= u32(imgSize.x) && global_invocation_id.y <= u32(imgSize.y)) {
 
 		// float combine_constant = 0.68;
 

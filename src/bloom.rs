@@ -377,7 +377,7 @@ fn set_all_bind_group(renderer: &Renderer, bloom_mat: &mut Material) {
 pub fn init_bloom(renderer: &mut Renderer) -> mesh::Mesh {
 	let mut bloom_mesh = mesh::Mesh::new::<u32>(
 		&renderer.context.device,
-		Some("pbrMesh"),
+		Some("bloomMesh"),
 		&vec![],
 		None,
 		None,
@@ -593,7 +593,7 @@ pub fn render_bloom(renderer: &mut Renderer, encoder: &mut wgpu::CommandEncoder)
 		compute_pass.dispatch(mip_size.width / 8 + 1, mip_size.height / 4 + 1, 1);
 	}
 
-	// * Frist Upsample
+	// * First Upsample
 	pc[0].mode_lod = MODE_UPSAMPLE_FIRST << 16 | ((BLOOM_MIP_COUNT - 2) as u32);
 	let pc_data = unsafe { pc.align_to::<u8>().1 };
 	compute_pass.set_push_constants(0, pc_data);
